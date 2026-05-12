@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EmotiSense — Emotion Detector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="bg-orbs">
+    <div class="orb orb1"></div>
+    <div class="orb orb2"></div>
+    <div class="orb orb3"></div>
+</div>
+
+<div class="main-container">
+
+    <header class="hero">
+        <div class="hero-badge">✦ Deep Learning NLP</div>
+        <h1>Emoti<span>Sense</span></h1>
+        <p>Advanced emotion intelligence — trained on real human expression</p>
+    </header>
+
+    <!-- PREDICTION CARD -->
+    <section class="card prediction-card">
+        <div class="card-label">🧠 Emotion Analysis</div>
+        <h2>How are you feeling?</h2>
+        <p class="card-sub">Type anything — a tweet, a sentence, a thought.</p>
+
+        <form method="POST" class="predict-form">
+            <div class="textarea-wrap">
+                <textarea name="text" id="inputText" placeholder="e.g. I can't believe how amazing today has been…" required>{{ user_text }}</textarea>
+                <div class="char-count"><span id="charCount">0</span> chars</div>
+            </div>
+            <button type="submit" class="btn-predict">
+                <span>Analyse Emotion</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
+        </form>
+
+        {% if emotion %}
+        <div class="result-box">
+            <div class="result-top">
+                <div class="big-emoji" id="bigEmoji">{{ emoji }}</div>
+                <div class="result-info">
+                    <div class="emotion-tag">{{ emotion | capitalize }}</div>
+                    <p class="result-message">{{ message }}</p>
+                    <div class="conf-pill">{{ "%.1f"|format(confidence) }}% confidence</div>
+                </div>
+            </div>
+
+            {% if top3_emotions %}
+            <div class="top3-section">
+                <p class="top3-title">Emotion breakdown</p>
+                {% for item in top3_emotions %}
+                <div class="bar-row">
+                    <span class="bar-label">{{ item.emotion }}</span>
+                    <div class="bar-track">
+                        <div class="bar-fill" style="width: {{ item.confidence }}%; --c: {{ loop.index }}"></div>
+                    </div>
+                    <span class="bar-pct">{{ item.confidence }}%</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </section>
+
+    <!-- EMOJI COMBO -->
+    <section class="card combo-card">
+        <div class="card-label">🎨 Emoji Lab</div>
+        <h2>Emoji Combination</h2>
+        <p class="card-sub">Click two emojis to fuse them together.</p>
+
+        <div class="emoji-buttons">
+            {% for e in ['😊','😍','😢','😭','😂','😠','😡','❤️','🔥','💔','🥀','😲','😨','😱','🤯','🤔','😎','⭐','🥳','🎉','🎊','😴','💤','👻','💥'] %}
+            <button onclick="selectEmoji('{{ e }}')" type="button">{{ e }}</button>
+            {% endfor %}
+        </div>
+
+        <div class="combo-display">
+            <div class="combo-slot" id="slot1">?</div>
+            <div class="plus-sign">+</div>
+            <div class="combo-slot" id="slot2">?</div>
+            <div class="equals-sign">=</div>
+            <div class="combo-result" id="combinedEmoji">✨</div>
+        </div>
+
+        <textarea id="artBox" placeholder="Your emoji art canvas…"></textarea>
+        <button onclick="clearArt()" type="button" class="btn-secondary">Clear Canvas</button>
+    </section>
+
+    <!-- MODEL GRAPHS -->
+    <section class="card graph-card">
+        <div class="card-label">📊 Model Performance</div>
+        <h2>Training Analytics</h2>
+        <p class="card-sub">CNN + BiLSTM + Self-Attention architecture</p>
+        <div class="graphs-grid">
+            <div>
+                <p class="graph-title">Accuracy</p>
+                <img src="{{ url_for('static', filename='accuracy_graph.png') }}" class="graph-img" alt="Accuracy">
+            </div>
+            <div>
+                <p class="graph-title">Loss</p>
+                <img src="{{ url_for('static', filename='loss_graph.png') }}" class="graph-img" alt="Loss">
+            </div>
+        </div>
+    </section>
+
+    <!-- SOUND SECTION -->
+    <section class="card sound-card">
+        <div class="card-label">🔊 Sound Effects</div>
+        <h2>Emotion Sounds</h2>
+        <p class="card-sub">Click an emoji to play its sound.</p>
+        <div class="emoji-buttons">
+            {% for pair in [('😊','happy'),('😢','sad'),('😠','angry'),('❤️','love'),('😨','fear'),('😲','surprise'),('😂','laugh'),('😎','cool'),('😴','sleep'),('🥳','party')] %}
+            <button onclick="playSound('{{ pair[1] }}')" type="button">{{ pair[0] }}</button>
+            {% endfor %}
+        </div>
+    </section>
+
+</div>
+
+<script>
+// ── Character count ──────────────────────────────────────────────────────────
+const ta = document.getElementById('inputText');
+const cc = document.getElementById('charCount');
+if (ta && cc) {
+    cc.textContent = ta.value.length;
+    ta.addEventListener('input', () => cc.textContent = ta.value.length);
+}
+
+// ── Emoji combo logic ────────────────────────────────────────────────────────
+let selected = [];
+
+const comboMap = {
+    "😊❤️":"🥰","❤️😊":"🥰","😍❤️":"💖","❤️😍":"💖",
+    "😢❤️":"💔","❤️😢":"💔","😭💔":"🥀","💔😭":"🥀",
+    "😂😭":"🤣","😭😂":"🤣","😂😂":"🤣",
+    "😠🔥":"🤬","🔥😠":"🤬","😡🔥":"💢","🔥😡":"💢",
+    "😲😨":"😱","😨😲":"😱","🤯🔥":"💥","🔥🤯":"💥",
+    "😎🔥":"😎🔥","🔥😎":"😎🔥","😎⭐":"🌟😎","⭐😎":"🌟😎",
+    "🥳⭐":"🎉","⭐🥳":"🎉","🥳🔥":"🎊","🔥🥳":"🎊",
+    "😴⭐":"💤","⭐😴":"💤","👻😨":"👻😱","😨👻":"👻😱",
+    "🤔🤯":"🧠💥","🤯🤔":"🧠💥","❤️🔥":"❤️‍🔥","🔥❤️":"❤️‍🔥"
+};
+
+function selectEmoji(emoji) {
+    selected.push(emoji);
+    if (selected.length > 2) selected.shift();
+
+    document.getElementById('slot1').textContent = selected[0] || '?';
+    document.getElementById('slot2').textContent = selected[1] || '?';
+
+    const artBox = document.getElementById('artBox');
+    artBox.value += emoji + ' ';
+
+    const key    = selected.join('');
+    const result = comboMap[key] || (selected.length === 2 ? selected[0]+' + '+selected[1] : selected[0]);
+    document.getElementById('combinedEmoji').textContent = result;
+}
+
+function clearArt() {
+    selected = [];
+    document.getElementById('artBox').value = '';
+    document.getElementById('slot1').textContent = '?';
+    document.getElementById('slot2').textContent = '?';
+    document.getElementById('combinedEmoji').textContent = '✨';
+}
+
+function playSound(type) {
+    new Audio('/static/sounds/' + type + '.mp3').play();
+}
+
+// ── Animate emoji on load ────────────────────────────────────────────────────
+const bigEmoji = document.getElementById('bigEmoji');
+if (bigEmoji) {
+    bigEmoji.style.animation = 'bounceIn 0.6s cubic-bezier(0.175,0.885,0.32,1.275)';
+}
+</script>
+</body>
+</html>
